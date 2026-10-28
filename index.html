@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高校生向けQ&Aチャットボット</title>
+    <!-- 簡易CSVパース用ライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .chat-container { width: 100%; max-width: 600px; background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 80vh; overflow: hidden; }
+        .chat-header { background: #0066cc; color: #fff; padding: 15px; font-weight: bold; text-align: center; }
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .message { padding: 10px 14px; border-radius: 8px; max-width: 80%; line-height: 1.5; font-size: 14px; white-space: pre-wrap; }
+        .message.bot { background: #e4e6eb; color: #000; align-self: flex-start; }
+        .message.user { background: #0066cc; color: #fff; align-self: flex-end; }
+        .chat-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; }
+        .chat-input-area input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; outline: none; font-size: 14px; }
+        .chat-input-area button { background: #0066cc; color: #fff; border: none; padding: 0 20px; margin-left: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .chat-input-area button:hover { background: #0055b3; }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">高校生向け 質問チャットボット</div>
+    <div id="chatMessages" class="chat-messages">
+        <div class="message bot">こんにちは！学校生活や勉強、進路について気軽に質問してね。</div>
+    </div>
+    <div class="chat-input-area">
+        <input type="text" id="userInput" placeholder="例：文系の割合ってどれくらい？" onkeypress="handleKeyPress(event)">
+        <button onclick="sendMessage()">送信</button>
+    </div>
+</div>
+
+<script>
+let qaList = [];
+
+// 起動時に同一フォルダの qa_data.csv を読み込む（header: falseで列名トラブルを回避）
+window.addEventListener('DOMContentLoaded', () => {
+    Papa.parse('qa_data.csv', {
+        download: true,
+        header: false, // 列名を使わず配列として取得
+        skipEmptyLines: true,
+        complete: function(results) {
+            // 1行目（ヘッダー「質問」「回答」）をスキップして2行目以降を格納
+            qaList = results.data.slice(1).map(row => ({
+                question: row[0] || "",
+                answer: row[1] || ""
+            }));
+            console.log("Q&Aデータを読み込みました:", qaList);
+        },
+        error: function(err) {
+            console.error("CSVの読み込みに失敗しました:", err);
+            appendMessage("bot", "システムエラー: Q&Aデータの読み込みに失敗しました。");
+        }
+    });
+});
+
+function handleKeyPress(e) {
+    if (e.key === 'Enter') sendMessage();
+}
+
+function sendMessage() {
+    const inputElem = document.getElementById('userInput');
+    const text = inputElem.value.trim();
+    if (!text) return;
+
+    appendMessage('user', text);
+    inputElem.value = '';
+
+    // 似ている質問を検索してそのまま回答する
+    setTimeout(() => {
+        const bestMatch = findBestMatch(text);
+        if (bestMatch) {
+            // 回答を一切加工せずそのまま表示
+            appendMessage('bot', bestMatch.answer);
+        } else {
+            appendMessage('bot', "ごめんね、うまく見つけられなかったよ。別の言い方で聞いてみてね！");
+        }
+    }, 300);
+}
+
+function appendMessage(sender, text) {
+    const messagesDiv = document.getElementById('chatMessages');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `message ${sender}`;
+    msgDiv.textContent = text;
+    messagesDiv.appendChild(msgDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// 検索ロジック
+function findBestMatch(input) {
+    if (qaList.length === 0) return null;
+
+    let bestItem = null;
+    let maxScore = -1;
+
+    const inputChars = cleanText(input);
+
+    for (let item of qaList) {
+        if (!item.question) continue;
+
+        const targetChars = cleanText(item.question);
+        const score = calcJaccardSimilarity(inputChars, targetChars);
+
+        if (score > maxScore) {
+            maxScore = score;
+            bestItem = item;
+        }
+    }
+
+    // 類似度の閾値（必要に応じて調整可能。0.01はかなり緩めにヒットさせます）
+    return maxScore > 0.01 ? bestItem : null;
+}
+
+function cleanText(text) {
+    if (!text) return "";
+    return String(text).toLowerCase().replace(/[\s\n！？！、。?・]/g, '');
+}
+
+function calcJaccardSimilarity(str1, str2) {
+    const set1 = getNGram(str1, 2);
+    const set2 = getNGram(str2, 2);
+    
+    let intersection = 0;
+    for (let s of set1) {
+        if (set2.has(s)) intersection++;
+    }
+    const union = set1.size + set2.size - intersection;
+    return union === 0 ? 0 : intersection / union;
+}
+
+function getNGram(str, n) {
+    const set = new Set();
+    if (str.length < n) {
+        set.add(str);
+        return set;
+    }
+    for (let i = 0; i <= str.length - n; i++) {
+        set.add(str.substr(i, n));
+    }
+    return set;
+}
+</script>
+
+</body>
+</html>
