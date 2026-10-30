@@ -3,145 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>高校生向けQ&Aチャットボット</title>
+    <title>高校生向け よくある質問（Q&A）</title>
     <!-- 簡易CSVパース用ライブラリ -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .chat-container { width: 100%; max-width: 600px; background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 80vh; overflow: hidden; }
-        .chat-header { background: #0066cc; color: #fff; padding: 15px; font-weight: bold; text-align: center; }
-        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .message { padding: 10px 14px; border-radius: 8px; max-width: 80%; line-height: 1.5; font-size: 14px; white-space: pre-wrap; }
-        .message.bot { background: #e4e6eb; color: #000; align-self: flex-start; }
-        .message.user { background: #0066cc; color: #fff; align-self: flex-end; }
-        .chat-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; }
-        .chat-input-area input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; outline: none; font-size: 14px; }
-        .chat-input-area button { background: #0066cc; color: #fff; border: none; padding: 0 20px; margin-left: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .chat-input-area button:hover { background: #0055b3; }
+        .container { width: 100%; max-width: 650px; background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 20px; box-sizing: border-box; }
+        h2 { color: #0066cc; text-align: center; margin-top: 0; font-size: 20px; }
+        .step-title { font-weight: bold; margin-bottom: 12px; color: #333; font-size: 16px; }
+        .btn-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+        .select-btn { background: #f8f9fa; border: 1px solid #ccc; padding: 14px 16px; border-radius: 8px; text-align: left; cursor: pointer; font-size: 15px; transition: 0.2s; color: #333; line-height: 1.4; }
+        .select-btn:hover { background: #e2e8f0; border-color: #0066cc; color: #0066cc; }
+        .back-btn { background: #6c757d; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-bottom: 15px; font-size: 14px; }
+        .back-btn:hover { background: #5a6268; }
+        .answer-box { background: #e6f0fa; border-left: 5px solid #0066cc; padding: 18px; border-radius: 0 8px 8px 0; margin-top: 20px; line-height: 1.6; white-space: pre-wrap; font-size: 15px; }
     </style>
 </head>
 <body>
 
-<div class="chat-container">
-    <div class="chat-header">高校生向け 質問チャットボット</div>
-    <div id="chatMessages" class="chat-messages">
-        <div class="message bot">こんにちは！学校生活や勉強、進路について気軽に質問してね。</div>
-    </div>
-    <div class="chat-input-area">
-        <input type="text" id="userInput" placeholder="例：文系の割合ってどれくらい？" onkeypress="handleKeyPress(event)">
-        <button onclick="sendMessage()">送信</button>
+<div class="container">
+    <h2>高校生向け よくある質問（Q&A）</h2>
+    <div id="app">
+        <p style="text-align: center; color: #666;">データを読み込んでいます...</p>
     </div>
 </div>
 
 <script>
-let qaList = [];
+let qaData = [];
 
-// 起動時に同一フォルダの qa_data.csv を読み込む（header: falseで列名トラブルを回避）
+// 起動時に同一フォルダの qa_data.csv を読み込む
 window.addEventListener('DOMContentLoaded', () => {
     Papa.parse('qa_data.csv', {
         download: true,
-        header: false, // 列名を使わず配列として取得
+        header: false,
         skipEmptyLines: true,
         complete: function(results) {
-            // 1行目（ヘッダー「質問」「回答」）をスキップして2行目以降を格納
-            qaList = results.data.slice(1).map(row => ({
-                question: row[0] || "",
-                answer: row[1] || ""
+            // 1行目（ヘッダー）をスキップし、0列目=大項目、1列目=質問、2列目=回答として格納
+            qaData = results.data.slice(1).map(row => ({
+                category: row[0] || "",
+                question: row[1] || "",
+                answer: row[2] || ""
             }));
-            console.log("Q&Aデータを読み込みました:", qaList);
+            showCategories();
         },
         error: function(err) {
             console.error("CSVの読み込みに失敗しました:", err);
-            appendMessage("bot", "システムエラー: Q&Aデータの読み込みに失敗しました。");
+            document.getElementById('app').innerHTML = '<p style="color:red; text-align:center;">システムエラー: Q&Aデータの読み込みに失敗しました。</p>';
         }
     });
 });
 
-function handleKeyPress(e) {
-    if (e.key === 'Enter') sendMessage();
-}
-
-function sendMessage() {
-    const inputElem = document.getElementById('userInput');
-    const text = inputElem.value.trim();
-    if (!text) return;
-
-    appendMessage('user', text);
-    inputElem.value = '';
-
-    // 似ている質問を検索してそのまま回答する
-    setTimeout(() => {
-        const bestMatch = findBestMatch(text);
-        if (bestMatch) {
-            // 回答を一切加工せずそのまま表示
-            appendMessage('bot', bestMatch.answer);
-        } else {
-            appendMessage('bot', "ごめんね、うまく見つけられなかったよ。別の言い方で聞いてみてね！");
-        }
-    }, 300);
-}
-
-function appendMessage(sender, text) {
-    const messagesDiv = document.getElementById('chatMessages');
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${sender}`;
-    msgDiv.textContent = text;
-    messagesDiv.appendChild(msgDiv);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-// 検索ロジック
-function findBestMatch(input) {
-    if (qaList.length === 0) return null;
-
-    let bestItem = null;
-    let maxScore = -1;
-
-    const inputChars = cleanText(input);
-
-    for (let item of qaList) {
-        if (!item.question) continue;
-
-        const targetChars = cleanText(item.question);
-        const score = calcJaccardSimilarity(inputChars, targetChars);
-
-        if (score > maxScore) {
-            maxScore = score;
-            bestItem = item;
-        }
-    }
-
-    // 類似度の閾値（必要に応じて調整可能。0.01はかなり緩めにヒットさせます）
-    return maxScore > 0.01 ? bestItem : null;
-}
-
-function cleanText(text) {
-    if (!text) return "";
-    return String(text).toLowerCase().replace(/[\s\n！？！、。?・]/g, '');
-}
-
-function calcJaccardSimilarity(str1, str2) {
-    const set1 = getNGram(str1, 2);
-    const set2 = getNGram(str2, 2);
+// 【ステップ1】大項目（カテゴリ）の一覧を表示する
+function showCategories() {
+    // 重複のないカテゴリリストを作成
+    const categories = [...new Set(qaData.map(item => item.category))].filter(Boolean);
     
-    let intersection = 0;
-    for (let s of set1) {
-        if (set2.has(s)) intersection++;
-    }
-    const union = set1.size + set2.size - intersection;
-    return union === 0 ? 0 : intersection / union;
+    let html = '<div class="step-title">1. 知りたい項目（カテゴリ）を選んでね</div><div class="btn-list">';
+    categories.forEach(cat => {
+        html += `<button class="select-btn" onclick="showQuestions('${cat}')">📁 ${cat} ＞</button>`;
+    });
+    html += '</div>';
+    
+    document.getElementById('app').innerHTML = html;
 }
 
-function getNGram(str, n) {
-    const set = new Set();
-    if (str.length < n) {
-        set.add(str);
-        return set;
-    }
-    for (let i = 0; i <= str.length - n; i++) {
-        set.add(str.substr(i, n));
-    }
-    return set;
+// 【ステップ2】選ばれた大項目の中にある「質問一覧」を表示する
+function showQuestions(category) {
+    const filtered = qaData.filter(item => item.category === category);
+    
+    let html = `<button class="back-btn" onclick="showCategories()">＜ 項目選択に戻る</button>`;
+    html += `<div class="step-title">2. 気になる質問を選んでね（${category}）</div><div class="btn-list">`;
+    
+    filtered.forEach((item, index) => {
+        html += `<button class="select-btn" onclick="showAnswer(${index}, '${category}')">❓ ${item.question}</button>`;
+    });
+    html += '</div><div id="answerArea"></div>';
+    
+    document.getElementById('app').innerHTML = html;
+}
+
+// 【ステップ3】選ばれた質問の「回答」を表示する
+function showAnswer(index, category) {
+    const filtered = qaData.filter(item => item.category === category);
+    const item = filtered[index];
+    
+    let answerArea = document.getElementById('answerArea');
+    answerArea.innerHTML = `
+        <div class="step-title" style="margin-top:20px; color:#0066cc;">【ご質問】 ${item.question}</div>
+        <div class="answer-box"><strong>【回答】</strong><br>${item.answer}</div>
+    `;
+    // 回答が表示された位置まで自動で画面をスクロール
+    answerArea.scrollIntoView({ behavior: 'smooth' });
 }
 </script>
 
