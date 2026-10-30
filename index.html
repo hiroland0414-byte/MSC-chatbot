@@ -7,8 +7,8 @@
     <!-- 簡易CSVパース用ライブラリ -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 650px; background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 20px; box-sizing: border-box; }
+        body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; display: flex; justify-content: center; min-height: 100vh; box-sizing: border-box; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 650px; background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 20px; box-sizing: border-box; flex: 1; display: flex; flex-direction: column; }
         h2 { color: #0066cc; text-align: center; margin-top: 0; font-size: 20px; }
         .step-title { font-weight: bold; margin-bottom: 12px; color: #333; font-size: 16px; }
         .btn-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
@@ -17,6 +17,8 @@
         .back-btn { background: #6c757d; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-bottom: 15px; font-size: 14px; }
         .back-btn:hover { background: #5a6268; }
         .answer-box { background: #e6f0fa; border-left: 5px solid #0066cc; padding: 18px; border-radius: 0 8px 8px 0; margin-top: 20px; line-height: 1.6; white-space: pre-wrap; font-size: 15px; }
+        /* 一番下の文字（フッター）のスタイル */
+        .footer-text { text-align: center; margin-top: 20px; color: #666; font-size: 13px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -26,6 +28,11 @@
     <div id="app">
         <p style="text-align: center; color: #666;">データを読み込んでいます...</p>
     </div>
+</div>
+
+<!-- ページの一番下に表示するテキスト -->
+<div class="footer-text">
+    京都医療科学大学 学生支援センター
 </div>
 
 <script>
@@ -55,7 +62,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // 【ステップ1】大項目（カテゴリ）の一覧を表示する
 function showCategories() {
-    // 重複のないカテゴリリストを作成
     const categories = [...new Set(qaData.map(item => item.category))].filter(Boolean);
     
     let html = '<div class="step-title">1. 知りたい項目（カテゴリ）を選んでね</div><div class="btn-list">';
@@ -92,7 +98,6 @@ function showAnswer(index, category) {
         <div class="step-title" style="margin-top:20px; color:#0066cc;">【ご質問】 ${item.question}</div>
         <div class="answer-box"><strong>【回答】</strong><br>${item.answer}</div>
     `;
-    // 回答が表示された位置まで自動で画面をスクロール
     answerArea.scrollIntoView({ behavior: 'smooth' });
 }
 </script>
